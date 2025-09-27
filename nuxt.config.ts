@@ -5,11 +5,20 @@ export default defineNuxtConfig({
 
   modules: [
     '@pinia/nuxt',
-    '@nuxtjs/i18n',
+    ['@nuxtjs/i18n', {
+      locales: ['en', 'es'],
+      defaultLocale: 'en',
+      // pass vue-i18n options directly (no separate i18n.config.ts)
+      vueI18n: {
+        legacy: false,
+        locale: 'en',
+        fallbackLocale: 'en',
+        messages: { en: {}, es: {} }
+      }
+    }],
     '@vite-pwa/nuxt'
   ],
 
-  // PWA (ok to keep)
   pwa: {
     registerType: 'autoUpdate',
     client: { installPrompt: true },
@@ -20,27 +29,11 @@ export default defineNuxtConfig({
     }
   },
 
-  // --- key fixes for Vercel SSR bundling ---
-  experimental: {
-    externalVue: false     // don’t externalize vue on the server
-  },
-  nitro: {
-    externals: {
-      inline: ['vue', '@vue/*', 'vue-i18n', '@intlify/*']
-    }
-  },
-  vite: {
-    ssr: {
-      // ensure these are bundled (no external/commonjs interop)
-      noExternal: ['vue', 'vue-i18n', '@intlify/*', '@nuxtjs/i18n']
-    }
-  },
-  build: {
-    // keep them transpiled just in case
-    transpile: ['vue-i18n', '@nuxtjs/i18n']
-  },
+  // keep the Vercel SSR fixes
+  experimental: { externalVue: false },
+  nitro: { externals: { inline: ['vue', '@vue/*', 'vue-i18n', '@intlify/*'] } },
+  vite: { ssr: { noExternal: ['vue', 'vue-i18n', '@intlify/*', '@nuxtjs/i18n'] } },
+  build: { transpile: ['vue-i18n', '@nuxtjs/i18n'] },
 
-  runtimeConfig: {
-    public: { appEnv: '' }
-  }
+  runtimeConfig: { public: { appEnv: '' } }
 })
