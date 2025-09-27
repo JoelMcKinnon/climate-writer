@@ -1,3 +1,4 @@
+// nuxt.config.ts
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
@@ -8,7 +9,7 @@ export default defineNuxtConfig({
     '@vite-pwa/nuxt'
   ],
 
-  // PWA settings (safe to keep)
+  // PWA (ok to keep)
   pwa: {
     registerType: 'autoUpdate',
     client: { installPrompt: true },
@@ -19,15 +20,26 @@ export default defineNuxtConfig({
     }
   },
 
-  // <<< Fix for Vercel runtime “vue default export” error >>>
+  // --- key fixes for Vercel SSR bundling ---
   experimental: {
-    externalVue: false
+    externalVue: false     // don’t externalize vue on the server
   },
   nitro: {
-    externals: { inline: ['vue', '@vue/*'] }
+    externals: {
+      inline: ['vue', '@vue/*', 'vue-i18n', '@intlify/*']
+    }
+  },
+  vite: {
+    ssr: {
+      // ensure these are bundled (no external/commonjs interop)
+      noExternal: ['vue', 'vue-i18n', '@intlify/*', '@nuxtjs/i18n']
+    }
+  },
+  build: {
+    // keep them transpiled just in case
+    transpile: ['vue-i18n', '@nuxtjs/i18n']
   },
 
-  // (optional) public env you can show on the page to verify Preview/Prod
   runtimeConfig: {
     public: { appEnv: '' }
   }
