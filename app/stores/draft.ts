@@ -1,16 +1,27 @@
+import { defineStore } from 'pinia'
+
 export const useDraft = defineStore('draft', {
   state: () => ({
-    hook: "",
-    personal: "",
-    body: "",
-    ask: "",
-    region: { city: "", state: "" },
-    starterAccepted: false,
-    starterText: ""
+    // CCL five-part formula
+    newsRef: '',     // 1) Reference a recent news item (title/date)
+    problem: '',     // 2) Relate to climate; state the problem without doom
+    solution: '',    // 3) Identify a solution (e.g., pricing pollution)
+    ask: '',         // 4) Clear call to action for your MoC
+    close: '',       // 5) Close the circle — tie back to the opener
+
+    // Other context
+    region: '',
+    starterAccepted: false
   }),
   getters: {
-    fullText(s){
-      return [s.hook, "", s.personal, "", s.body, "", s.ask, "", "Thank you for considering this letter."].join("\n");
+    fullText(state) {
+      return [
+        state.newsRef,
+        state.problem,
+        state.solution,
+        state.ask,
+        state.close
+      ].filter(Boolean).join(' ')
     }
   }
-});
+})

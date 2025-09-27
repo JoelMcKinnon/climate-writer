@@ -1,38 +1,72 @@
-export type RubricKey = "hook"|"personal"|"policy"|"ask"|"length"|"local"|"tone";
-export interface RubricItem { key: RubricKey; label: string; pass: boolean; note?: string; weight: number; }
-export interface CoachResult { score: number; items: RubricItem[]; suggestions: string[]; }
-function wordCount(s: string){ return (s.match(/\b\w+\b/g) || []).length; }
-export function scoreLTE(input: { hook: string; personal: string; body: string; ask: string; region?: { city?: string; state?: string }; }) : CoachResult {
-  const items: RubricItem[] = []; const suggestions: string[] = [];
-  const len = wordCount([input.hook, input.personal, input.body, input.ask].join(" "));
-  const hasHook = !!input.hook && /(?:today|this|recent|editorial|op\-ed|report|article|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4})/i.test(input.hook);
-  items.push({ key:"hook", label:"Newsy hook", pass:hasHook, note: hasHook?"":"Name the article/date/event.", weight:0.2 });
-  if(!hasHook) suggestions.push("Open with the article title or date so editors know what you’re referencing.");
-  const hasPersonal = wordCount(input.personal) >= 10 && input.personal.length <= 350;
-  items.push({ key:"personal", label:"Personal connection", pass:hasPersonal, note: hasPersonal?"":"Use 1–2 concrete details.", weight:0.2 });
-  if(!hasPersonal) suggestions.push("Add a concrete detail (bill amount, child’s asthma episode, commute, etc.).");
-  const oneIdea = !/[;]|(?:\b(and|also|plus)\b.*\b(and|also|plus)\b)/i.test(input.body);
-  items.push({ key:"policy", label:"One policy point", pass:oneIdea, note: oneIdea?"":"Keep one policy idea.", weight:0.2 });
-  if(!oneIdea) suggestions.push("Cut to one policy idea; save extras for a future letter.");
-  const clearAsk = /\b(support|pass|vote|cosponsor|oppose|fund|prioritize)\b/i.test(input.ask);
-  items.push({ key:"ask", label:"Single clear ask", pass:clearAsk, note: clearAsk?"":"Name the official and action.", weight:0.2 });
-  if(!clearAsk) suggestions.push("Name the decision-maker and a single action (e.g., “Please support ___”).");
-  const withinLen = len >= 120 && len <= 200;
-  items.push({ key:"length", label:"Within 120–200 words", pass:withinLen, note: withinLen?"":"Target ~150–180 words.", weight:0.1 });
-  if(!withinLen) suggestions.push("Trim to ~170 words; remove filler, combine short sentences.");
-  const local = !!(input.region?.city || input.region?.state) &&
-    new RegExp(`\\b(${[input.region?.city, input.region?.state].filter(Boolean).join("|")})\\b`, "i")
-    .test([input.hook,input.personal,input.body].join(" "));
-  items.push({ key:"local", label:"Local relevance", pass:local, note: local?"":"Name your city/state or outlet.", weight:0.05 });
-  if(!local) suggestions.push("Name your city, neighborhood, or a local landmark/organization.");
-  const civilTone = !/\b(dumb|idiot|corrupt|liar|disgusting|hate)\b/i.test([input.hook,input.body].join(" "));
-  items.push({ key:"tone", label:"Respectful tone", pass:civilTone, note: civilTone?"":"Rephrase blamey language.", weight:0.05 });
-  if(!civilTone) suggestions.push("Swap blamey words for respectful phrasing; it increases publish chances.");
-  const score = Math.round(items.reduce((s,i)=> s + (i.pass ? i.weight : 0), 0) * 100);
-  return { score, items, suggestions };
+export function scoreLTE(input: {
+  newsRef: string
+  problem: string
+  solution: string
+  ask: string
+  close: string
+  region?: string
+}) {
+  const words = (txt: string) => (txt.match(/\b\w+\b/g) || []).length
+  const totalWords = words(
+    [input.newsRef, input.problem, input.solution, input.ask, input.close].join(' ')
+  )
+
+  const items = [
+    {
+      key: 'newsRef',
+      label: 'Reference a recent news item',
+      note: 'Name the article and date.',
+      pass: /\b(202\d|202\d-\d{1,2}|\bMon|\bTue|\bWed|\bThu|\bFri|\bSat|\bSun)/i.test(input.newsRef) || input.newsRef.length > 20
+    },
+    {
+      key: 'problem',
+      label: 'Relate it to climate without doom',
+      note: 'Be specific and local where possible.',
+      pass: input.problem.length >= 30
+    },
+    {
+      key: 'solution',
+      label: 'Identify a solution',
+      note: 'Stick to one idea; avoid a list.',
+      pass: input.solution.length >= 30 && !/[;•]/.test(input.solution)
+    },
+    {
+      key: 'ask',
+      label: 'Single clear ask',
+      note: 'Name the official and action.',
+      pass: /(support|cosponsor|oppose|vote|introduce)/i.test(input.ask)
+    },
+    {
+      key: 'close',
+      label: 'Close the circle',
+      note: 'Tie back to the opening.',
+      pass: input.close.length >= 12
+    },
+    {
+      key: 'length',
+      label: 'Within 150–250 words',
+      note: 'Target ~150–180 words unless outlet differs.',
+      pass: totalWords >= 120 && totalWords <= 260
+    },
+    {
+      key: 'tone',
+      label: 'Respectful tone',
+      note: 'No insults; appreciative where appropriate.',
+      pass: !/(idiot|stupid|corrupt|traitor)/i.test([input.problem,input.solution,input.ask].join(' '))
+    }
+  ]
+
+  // Simple score: each pass = +14 (cap at 100)
+  const score = Math.min(100, items.filter(i => i.pass).length * 14)
+
+  const suggestions = items.filter(i => !i.pass).map(i => i.note)
+
+  return { score, items, suggestions }
 }
-export function tightenToWords(text: string, target=180){
-  const words = text.split(/\s+/);
-  if(words.length <= target) return text;
-  return words.slice(0, target).join(" ") + "…";
+
+// Utility you already had:
+export function tightenToWords(text: string, maxWords = 180) {
+  const tokens = (text || '').trim().split(/\s+/)
+  if (tokens.length <= maxWords) return text
+  return tokens.slice(0, maxWords).join(' ') + '…'
 }
