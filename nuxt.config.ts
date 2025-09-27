@@ -1,46 +1,31 @@
-// nuxt.config.ts
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
   modules: [
     '@pinia/nuxt',
-    '@nuxtjs/i18n',
-    '@vite-pwa/nuxt'
+    '@vite-pwa/nuxt',
+    '@nuxtjs/tailwindcss',
+    '@nuxtjs/i18n'
   ],
 
-  // PWA (ok to keep)
-  pwa: {
-    registerType: 'autoUpdate',
-    client: { installPrompt: true },
-    manifest: {
-      name: 'Climate Writer',
-      short_name: 'ClimateWriter',
-      theme_color: '#0ea5e9'
-    }
+  // i18n module options at root (supported by Nuxt modules)
+  i18n: {
+    locales: [
+      { code: 'en', name: 'English' },
+      { code: 'es', name: 'Español' }
+    ],
+    defaultLocale: 'en',
+    // NOTE: plain string path relative to project root
+    vueI18n: 'i18n.config.ts'
   },
 
-  // --- key fixes for Vercel SSR bundling ---
-  experimental: {
-    externalVue: false     // don’t externalize vue on the server
-  },
-  nitro: {
-    externals: {
-      inline: ['vue', '@vue/*', 'vue-i18n', '@intlify/*']
-    }
-  },
-  vite: {
-    ssr: {
-      // ensure these are bundled (no external/commonjs interop)
-      noExternal: ['vue', 'vue-i18n', '@intlify/*', '@nuxtjs/i18n']
-    }
-  },
-  build: {
-    // keep them transpiled just in case
-    transpile: ['vue-i18n', '@nuxtjs/i18n']
-  },
+  css: ['~/assets/css/tailwind.css'],
 
-  runtimeConfig: {
-    public: { appEnv: '' }
-  }
+  experimental: { externalVue: false },
+  nitro: { externals: { inline: ['vue','@vue/*','vue-i18n','@intlify/*'] } },
+  vite: { ssr: { noExternal: ['vue','vue-i18n','@intlify/*','@nuxtjs/i18n'] } },
+  build: { transpile: ['vue-i18n','@nuxtjs/i18n'] },
+
+  runtimeConfig: { public: { appEnv: '' } }
 })
