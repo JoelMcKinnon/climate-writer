@@ -1,14 +1,24 @@
 export function scoreLTE(input: {
-  newsRef: string
-  problem: string
-  solution: string
-  ask: string
-  close: string
+  newsRef?: string
+  problem?: string
+  solution?: string
+  ask?: string
+  close?: string
   region?: string
 }) {
-  const words = (txt: string) => (txt.match(/\b\w+\b/g) || []).length
+  // defaults so we never read .length on undefined
+  const data = {
+    newsRef: input.newsRef ?? '',
+    problem: input.problem ?? '',
+    solution: input.solution ?? '',
+    ask:     input.ask ?? '',
+    close:   input.close ?? '',
+    region:  input.region ?? ''
+  }
+
+  const words = (txt: string) => (String(txt).match(/\b\w+\b/g) || []).length
   const totalWords = words(
-    [input.newsRef, input.problem, input.solution, input.ask, input.close].join(' ')
+    [data.newsRef, data.problem, data.solution, data.ask, data.close].join(' ')
   )
 
   const items = [
@@ -16,31 +26,31 @@ export function scoreLTE(input: {
       key: 'newsRef',
       label: 'Reference a recent news item',
       note: 'Name the article and date.',
-      pass: /\b(202\d|202\d-\d{1,2}|\bMon|\bTue|\bWed|\bThu|\bFri|\bSat|\bSun)/i.test(input.newsRef) || input.newsRef.length > 20
+      pass: /\b(202\d|Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/i.test(data.newsRef) || data.newsRef.length > 20
     },
     {
       key: 'problem',
       label: 'Relate it to climate without doom',
       note: 'Be specific and local where possible.',
-      pass: input.problem.length >= 30
+      pass: data.problem.length >= 30
     },
     {
       key: 'solution',
       label: 'Identify a solution',
       note: 'Stick to one idea; avoid a list.',
-      pass: input.solution.length >= 30 && !/[;•]/.test(input.solution)
+      pass: data.solution.length >= 30 && !/[;•]/.test(data.solution)
     },
     {
       key: 'ask',
       label: 'Single clear ask',
       note: 'Name the official and action.',
-      pass: /(support|cosponsor|oppose|vote|introduce)/i.test(input.ask)
+      pass: /(support|cosponsor|oppose|vote|introduce)/i.test(data.ask)
     },
     {
       key: 'close',
       label: 'Close the circle',
       note: 'Tie back to the opening.',
-      pass: input.close.length >= 12
+      pass: data.close.length >= 12
     },
     {
       key: 'length',
@@ -52,21 +62,18 @@ export function scoreLTE(input: {
       key: 'tone',
       label: 'Respectful tone',
       note: 'No insults; appreciative where appropriate.',
-      pass: !/(idiot|stupid|corrupt|traitor)/i.test([input.problem,input.solution,input.ask].join(' '))
+      pass: !/(idiot|stupid|corrupt|traitor)/i.test(`${data.problem} ${data.solution} ${data.ask}`)
     }
   ]
 
-  // Simple score: each pass = +14 (cap at 100)
   const score = Math.min(100, items.filter(i => i.pass).length * 14)
-
   const suggestions = items.filter(i => !i.pass).map(i => i.note)
 
   return { score, items, suggestions }
 }
 
-// Utility you already had:
 export function tightenToWords(text: string, maxWords = 180) {
-  const tokens = (text || '').trim().split(/\s+/)
-  if (tokens.length <= maxWords) return text
+  const tokens = (String(text).trim().split(/\s+/)).filter(Boolean)
+  if (tokens.length <= maxWords) return text ?? ''
   return tokens.slice(0, maxWords).join(' ') + '…'
 }

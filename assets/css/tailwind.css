@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base look */
+@layer base {
+  body { @apply bg-ccl-sand50 text-slate-800; }
+  /* use the design token instead of @apply-ing a class */
+  h1, h2, h3 { font-family: theme('fontFamily.heading'); }
+}
+
+/* Components */
+@layer components {
+  .ccl-card { @apply rounded-2xl border border-slate-200 bg-white shadow-card; }
+  .ccl-panel { @apply rounded-2xl border border-ccl-green/20 bg-ccl-green50; }
+
+  .input, .textarea, .select {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 shadow-sm
+           focus:outline-none focus:ring-2 focus:ring-ccl-blue;
+  }
+
+  .btn         { @apply inline-flex items-center gap-2 rounded-xl px-4 py-2 font-medium; }
+  .btn-primary { @apply btn bg-ccl-green text-white hover:bg-ccl-green600 focus:ring-2 focus:ring-ccl-blue; }
+  .btn-outline { @apply btn border border-slate-300 bg-white hover:bg-slate-50; }
+
+  .step-badge {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-full
+           bg-ccl-blue text-white text-sm font-semibold;
+  }
+
+  .link { @apply text-ccl-blue underline decoration-2 underline-offset-2 hover:text-ccl-blue600; }
+}
