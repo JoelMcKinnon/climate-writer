@@ -1,27 +1,26 @@
+// app/stores/draft.ts
 import { defineStore } from 'pinia'
 
 export const useDraft = defineStore('draft', {
   state: () => ({
-    // CCL five-part formula
-    newsRef: '',     // 1) Reference a recent news item (title/date)
-    problem: '',     // 2) Relate to climate; state the problem without doom
-    solution: '',    // 3) Identify a solution (e.g., pricing pollution)
-    ask: '',         // 4) Clear call to action for your MoC
-    close: '',       // 5) Close the circle — tie back to the opener
+    // Step 1: intake
+    issue: '', audience: 'editor' as 'editor'|'moc',
+    city: '', state: '', zip: '', outlet: '', wordLimit: 180,
+    articleTitle: '', articleDate: '', articleUrl: '',
+    personal: '',              // user's personal perspective (1–2 sentences)
+    includePersonal: true,     // whether to include it in the outline/draft
 
-    // Other context
-    region: '',
-    starterAccepted: false
+    // Step 2: selected CCL brief id
+    briefId: '',
+
+    // Step 3: outline from LLM
+    thesis: '', bullets: [] as string[], selectedBullets: [] as string[],
+
+    // Step 4: draft + polished
+    draftText: '', polishedText: '', changeNotes: '' // short bullet summary of edits
   }),
   getters: {
-    fullText(state) {
-      return [
-        state.newsRef,
-        state.problem,
-        state.solution,
-        state.ask,
-        state.close
-      ].filter(Boolean).join(' ')
-    }
+    location(state) { return [state.city, state.state].filter(Boolean).join(', ') },
+    finalText(state) { return state.polishedText || state.draftText }
   }
 })

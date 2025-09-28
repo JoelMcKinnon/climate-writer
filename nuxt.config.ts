@@ -23,8 +23,20 @@ export default defineNuxtConfig({
   css: ['~/assets/css/tailwind.css'],
 
   experimental: { externalVue: false },
-  nitro: { externals: { inline: ['vue','@vue/*','vue-i18n','@intlify/*'] } },
-  vite: { ssr: { noExternal: ['vue','vue-i18n','@intlify/*','@nuxtjs/i18n'] } },
+
+  nitro: {
+    externals: {
+      inline: ['openai', 'zod', 'vue', '@vue/*', 'vue-i18n', '@intlify/*']
+    }
+  },
+
+  // ⬇️ And here so Vite SSR doesn’t externalize them
+  vite: {
+    ssr: {
+      noExternal: ['openai', 'zod', 'vue', 'vue-i18n', '@intlify/*', '@nuxtjs/i18n']
+    }
+  },
+
   build: { transpile: ['vue-i18n','@nuxtjs/i18n'] },
 
   runtimeConfig: { public: { appEnv: '' } }
