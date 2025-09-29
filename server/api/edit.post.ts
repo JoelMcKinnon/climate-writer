@@ -10,16 +10,10 @@ const Body = z.object({
 export default defineEventHandler(async (event) => {
   const { draft, wordLimit } = Body.parse(await readBody(event))
 
-  // Server-side key only (set in Vercel as OPENAI_API_KEY)
-  const apiKey = process.env.OPENAI_API_KEY as string | undefined
-  if (!apiKey) {
-    throw createError({
-      statusCode: 503,
-      statusMessage: 'LLM unavailable: server is not configured.'
-    })
+  const { openaiApiKey } = useRuntimeConfig()
+  if (!openaiApiKey) {
+    throw createError({ statusCode: 503, statusMessage: 'LLM unavailable: server is not configured.' })
   }
-
-  const openai = new OpenAI({ apiKey })
 
   const system = `Edit for clarity, respectful tone, and CCL style.
 Keep the author's voice. Remove jargon and absolutist language.
