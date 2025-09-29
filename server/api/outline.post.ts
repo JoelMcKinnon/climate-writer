@@ -21,20 +21,11 @@ export default defineEventHandler(async (event) => {
   const brief = (briefs as any)[input.briefId]
   if (!brief) throw createError({ statusCode: 400, statusMessage: 'Unknown briefId' })
 
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    throw createError({
-      statusCode: 503,
-      statusMessage: 'LLM unavailable: server is not configured.',
-    })
+  const { openaiApiKey } = useRuntimeConfig()       // ← single source
+  if (!openaiApiKey) {
+    throw createError({ statusCode: 503, statusMessage: 'LLM unavailable: server is not configured.' })
   }
-
-    const config = useRuntimeConfig()
-    const apiKey = config.openaiApiKey
-    if (!apiKey) {
-      throw createError({ statusCode: 503, statusMessage: 'LLM unavailable: server is not configured.' })
-    }
-    const openai = new OpenAI({ apiKey })
+  const openai = new OpenAI({ apiKey: openaiApiKey })
 
   const system = `You are a coach helping Citizens' Climate Lobby advocates draft LTEs.
 Follow CCL tone: respectful, appreciative, solution-focused. Avoid doom and snark.
