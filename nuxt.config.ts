@@ -39,5 +39,7 @@ export default defineNuxtConfig({
 
   build: { transpile: ['vue-i18n','@nuxtjs/i18n'] },
 
-  runtimeConfig: { public: { appEnv: '' } }
+  runtimeConfig: {
+    openaiApiKey: process.env.OPENAI_API_KEY || ''
+  },
 })

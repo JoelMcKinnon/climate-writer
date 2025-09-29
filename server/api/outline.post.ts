@@ -28,8 +28,13 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'LLM unavailable: server is not configured.',
     })
   }
-  
-  const openai = new OpenAI({ apiKey: String(apiKey) })
+
+    const config = useRuntimeConfig()
+    const apiKey = config.openaiApiKey
+    if (!apiKey) {
+      throw createError({ statusCode: 503, statusMessage: 'LLM unavailable: server is not configured.' })
+    }
+    const openai = new OpenAI({ apiKey })
 
   const system = `You are a coach helping Citizens' Climate Lobby advocates draft LTEs.
 Follow CCL tone: respectful, appreciative, solution-focused. Avoid doom and snark.
