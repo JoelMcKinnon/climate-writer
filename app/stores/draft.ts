@@ -7,9 +7,8 @@ export const useDraft = defineStore('draft', {
     briefId: '',
     city: '',
     state: '',
-    // NEW: required
-    personalPerspective: '',
-
+    personal: '',
+    draftText: '',
     articleTitle: '',
     articleDate: '',
     outlet: '',
