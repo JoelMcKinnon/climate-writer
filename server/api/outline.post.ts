@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import { z } from 'zod'
-import { briefs } from '@/data/briefs'
+import { briefs } from '../../app/data/briefs.ts'
 
 const Body = z.object({
   issue: z.string().min(2),
