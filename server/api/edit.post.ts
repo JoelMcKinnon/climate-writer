@@ -14,6 +14,7 @@ export default defineEventHandler(async (event) => {
   if (!openaiApiKey) {
     throw createError({ statusCode: 503, statusMessage: 'LLM unavailable: server is not configured.' })
   }
+  const openai = new OpenAI({ apiKey: openaiApiKey })
 
   const system = `Edit for clarity, respectful tone, and CCL style.
 Keep the author's voice. Remove jargon and absolutist language.
