@@ -1,26 +1,23 @@
-// app/stores/draft.ts
 import { defineStore } from 'pinia'
 
 export const useDraft = defineStore('draft', {
   state: () => ({
-    // Step 1: intake
-    issue: '', audience: 'editor' as 'editor'|'moc',
-    city: '', state: '', zip: '', outlet: '', wordLimit: 180,
-    articleTitle: '', articleDate: '', articleUrl: '',
-    personal: '',              // user's personal perspective (1–2 sentences)
-    includePersonal: true,     // whether to include it in the outline/draft
-
-    // Step 2: selected CCL brief id
+    issue: '',
+    audience: 'editor' as 'editor' | 'moc',
     briefId: '',
+    city: '',
+    state: '',
+    // NEW: required
+    personalPerspective: '',
 
-    // Step 3: outline from LLM
-    thesis: '', bullets: [] as string[], selectedBullets: [] as string[],
+    articleTitle: '',
+    articleDate: '',
+    outlet: '',
 
-    // Step 4: draft + polished
-    draftText: '', polishedText: '', changeNotes: '' // short bullet summary of edits
+    bullets: [] as string[],
+    // Remove selection/ask fields
+    // selectedBullets: [] as string[],
+    // ask: '',
+    wordLimit: 180,
   }),
-  getters: {
-    location(state) { return [state.city, state.state].filter(Boolean).join(', ') },
-    finalText(state) { return state.polishedText || state.draftText }
-  }
 })

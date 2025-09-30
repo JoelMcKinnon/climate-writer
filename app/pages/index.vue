@@ -6,7 +6,7 @@
       <CoachCard :step="1" title="Describe your situation">
         <div class="grid gap-3 sm:grid-cols-2">
           <div class="sm:col-span-2">
-            <label class="block text-sm font-medium text-slate-700">Issue / topic</label>
+            <label class="block text-sm font-medium text-slate-700">Issue / topic <span class="text-amber-700">*</span></label>
             <input v-model="d.issue" class="input" placeholder="e.g., Clean energy permitting" />
           </div>
 
@@ -19,7 +19,7 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-slate-700">CCL brief</label>
+            <label class="block text-sm font-medium text-slate-700">CCL brief <span class="text-amber-700">*</span></label>
             <select v-model="d.briefId" class="select">
               <option disabled value="">Select a brief</option>
               <option v-for="opt in briefOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
@@ -36,6 +36,20 @@
             <input v-model="d.state" class="input" />
           </div>
 
+          <!-- Personal perspective required -->
+          <div class="sm:col-span-2">
+            <label class="block text-sm font-medium text-slate-700">
+              Your personal perspective (1–2 sentences) <span class="text-amber-700">*</span>
+            </label>
+            <textarea
+              v-model="d.personal"
+              class="textarea min-h-20"
+              placeholder="One concrete detail: cost, health, commute, wildfire smoke, etc."
+            ></textarea>
+            <p v-if="!d.personal.trim()" class="mt-1 text-xs text-amber-700">This field is required.</p>
+          </div>
+
+          <!-- Optional article context -->
           <div class="sm:col-span-2">
             <label class="block text-sm font-medium text-slate-700">Article (title) you’re responding to (optional)</label>
             <input v-model="d.articleTitle" class="input" placeholder="e.g., ‘Faster clean power is within reach’" />
@@ -78,92 +92,25 @@
           <span v-if="genBusy" class="text-sm text-slate-600">Generating…</span>
           <p v-if="genError" class="text-sm text-amber-700">{{ genError }}</p>
         </div>
-
-        <div class="space-y-2">
-          <label class="block text-sm font-medium text-slate-700">
-            Your personal perspective (1–2 sentences) — optional
-          </label>
-          <textarea
-            v-model="d.personal"
-            class="textarea min-h-20"
-            placeholder="One concrete detail: cost, health, commute, wildfire smoke, etc."
-          ></textarea>
-
-          <label class="mt-1 flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              v-model="d.includePersonal"
-              class="rounded border-slate-300 text-ccl-blue focus:ring-ccl-blue"
-            />
-            Include this in the bullet list and draft
-          </label>
-        </div>
       </CoachCard>
 
-      <!-- STEP B: Bullets -->
-      <CoachCard :step="2" title="Select bullet ideas">
-        <p class="text-sm text-slate-600" v-if="!d.bullets.length">
+      <!-- STEP B: Bullets (read-only list with personal first) -->
+      <CoachCard :step="2" title="Bullet ideas">
+        <p class="text-sm text-slate-600" v-if="!mergedBullets.length">
           No bullets yet — run “Generate bullets.”
         </p>
 
-        <div v-else class="space-y-4">
+        <div v-else class="space-y-3">
           <p class="text-sm">
             <span class="font-medium">Thesis:</span> {{ d.thesis }}
           </p>
 
-          <!-- Personal perspective -->
-          <div class="space-y-2">
-            <label class="block text-sm font-medium text-slate-700">
-              Your personal perspective (1–2 sentences) — optional
-            </label>
-            <textarea
-              v-model="d.personal"
-              class="textarea min-h-20"
-              placeholder="One concrete detail: cost, health, commute, wildfire smoke, etc."
-            />
-            <label class="mt-1 flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                v-model="d.includePersonal"
-                class="rounded border-slate-300 text-ccl-blue focus:ring-ccl-blue"
-              />
-              Include this in the bullet list and draft
-            </label>
-          </div>
+          <ul class="list-disc pl-6 text-sm text-slate-800">
+            <li v-for="b in mergedBullets" :key="b">{{ b }}</li>
+          </ul>
 
-          <!-- Selectable bullets: personal (if included) + model bullets -->
-          <div class="grid gap-2">
-            <label
-              v-for="b in mergedBullets"
-              :key="b"
-              class="flex items-start gap-2"
-            >
-              <input
-                type="checkbox"
-                v-model="d.selectedBullets"
-                :value="b"
-                class="mt-1 rounded border-slate-300 text-ccl-blue focus:ring-ccl-blue"
-              />
-              <span class="text-sm text-slate-800">{{ b }}</span>
-            </label>
-          </div>
-
-          <div class="mt-2">
-            <label class="block text-sm font-medium text-slate-700">Suggested ask (editable)</label>
-            <input v-model="d.ask" class="input" placeholder="Please support / cosponsor / oppose …" />
-          </div>
-
-          <div class="mt-3 flex gap-2">
-            <button
-              class="btn-outline"
-              :disabled="!d.selectedBullets.length"
-              @click="sendToEditor"
-            >
-              Send to editor
-            </button>
-            <p v-if="!d.selectedBullets.length" class="text-sm text-slate-600">
-              Select at least one bullet.
-            </p>
+          <div class="mt-3">
+            <button class="btn-outline" @click="insertOutline">Insert into editor</button>
           </div>
         </div>
       </CoachCard>
@@ -198,7 +145,7 @@
         </div>
       </CoachCard>
 
-      <!-- Coach feedback (uses the same rubric, applied to the current final text) -->
+      <!-- Coach feedback -->
       <section class="ccl-card p-5 sm:p-6">
         <div class="flex items-center justify-between">
           <h3 class="font-semibold text-slate-900">Coach feedback</h3>
@@ -254,10 +201,16 @@ const d = useDraft()
 const briefOptions = Object.entries(briefs).map(([value, b]) => ({ value, label: b.title }))
 const activeBrief = computed(() => (d.briefId ? (briefs as any)[d.briefId] : null))
 
+// Bullets merged with required personal perspective (always first)
+const mergedBullets = computed(() => {
+  const personal = d.personal?.trim() ? [`Personal: ${d.personal.trim()}`] : []
+  return [...personal, ...(Array.isArray(d.bullets) ? d.bullets : [])]
+})
+
 // --- Step A: Generate bullets ---
 const genBusy = ref(false)
 const genError = ref('')
-const canGenerate = computed(() => !!d.issue && !!d.briefId)
+const canGenerate = computed(() => !!d.issue && !!d.briefId && !!d.personal.trim())
 
 async function generateBullets() {
   genError.value = ''
@@ -279,8 +232,6 @@ async function generateBullets() {
     })
     d.thesis = data.thesis || ''
     d.bullets = Array.isArray(data.bullets) ? data.bullets : []
-    if (data.suggestedAsk) d.ask = data.suggestedAsk
-    d.selectedBullets = []
   } catch (e: any) {
     genError.value = e?.data?.statusMessage || e?.message || 'Failed to generate.'
   } finally {
@@ -288,22 +239,25 @@ async function generateBullets() {
   }
 }
 
-// --- Step B: Send to editor (make a scaffold) ---
-function sendToEditor() {
-  // Intro referencing article if present
+// --- Step B: Insert outline into editor ---
+function insertOutline() {
+  if (!mergedBullets.value.length) return
+
   const intro = d.articleTitle
     ? `Regarding "${d.articleTitle}"${d.articleDate ? ` (${d.articleDate})` : ''}${d.outlet ? ` in ${d.outlet}` : ''}:`
     : `In ${[d.city, d.state].filter(Boolean).join(', ') || 'our community'},`
 
-  const middle = d.selectedBullets.map(b => b.replace(/\.*\s*$/, '.')).join(' ')
-  const ask = d.ask ? d.ask.replace(/\.*\s*$/, '.') : ''
+  // Personal always first; rest follow as sentences.
+  const sentences = mergedBullets.value.map(b => b.replace(/^Personal:\s*/,'').replace(/\.*\s*$/, '.'))
+  const middle = sentences.join(' ')
   const close = 'Thank you for considering this perspective.'
 
-  d.draftText = [intro, middle, ask, close].filter(Boolean).join(' ')
-  // Also feed the rubric some structure (best-effort split)
+  d.draftText = [intro, middle, close].filter(Boolean).join(' ')
+
+  // Populate rubric helpers
   d.newsRef = intro
-  d.problem = d.selectedBullets[0] || ''
-  d.solution = d.selectedBullets.slice(1, 3).join(' ')
+  d.problem = (d.bullets && d.bullets[0]) ? d.bullets[0] : ''
+  d.solution = (d.bullets && d.bullets.slice(1, 3).join(' ')) || ''
   d.close = close
 }
 
@@ -334,7 +288,7 @@ const result = computed(() =>
     newsRef: d.newsRef || '',
     problem: d.problem || '',
     solution: d.solution || '',
-    ask: d.ask || '',
+    ask: '',           // ask removed in this flow
     close: d.close || '',
     region: d.region || ''
   })
