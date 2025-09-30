@@ -16,6 +16,11 @@
     }
   ],
   "compilerOptions": {
-    "types": ["node"]
+    "baseUrl": ".",
+    "paths": {
+      "~/*": ["./*"],
+      "@/*": ["./*"]
+    },
+    "types": ["node", "nuxt"]
   }
 }

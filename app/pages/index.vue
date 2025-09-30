@@ -46,7 +46,7 @@
               class="textarea min-h-20"
               placeholder="One concrete detail: cost, health, commute, wildfire smoke, etc."
             ></textarea>
-            <p v-if="!d.personal.trim()" class="mt-1 text-xs text-amber-700">This field is required.</p>
+            <p v-if="!trim(d.personal)" class="mt-1 text-xs text-amber-700">This field is required.</p>
           </div>
 
           <!-- Optional article context -->
@@ -124,7 +124,7 @@
         <textarea v-model="d.draftText" class="textarea min-h-60" placeholder="Start drafting here…"></textarea>
 
         <div class="mt-3 flex flex-wrap gap-2 items-center">
-          <button class="btn-primary" :disabled="!d.draftText.trim()" @click="polish">
+          <button class="btn-primary" :disabled="!trim(d.draftText)" @click="polish">
             Polish &amp; trim
           </button>
           <button class="btn-outline" :disabled="!finalText" @click="copy(finalText)">Copy final</button>
@@ -195,6 +195,8 @@ import { scoreLTE, tightenToWords } from '~/composables/useCoach'
 import { computed, ref } from 'vue'
 import { briefs } from '@/data/briefs'
 
+const trim = (s?: string | null) => (s ?? '').trim()
+
 const d = useDraft()
 
 // --- Brief options & active brief ---
@@ -210,7 +212,7 @@ const mergedBullets = computed(() => {
 // --- Step A: Generate bullets ---
 const genBusy = ref(false)
 const genError = ref('')
-const canGenerate = computed(() => !!d.issue && !!d.briefId && !!d.personal.trim())
+const canGenerate = computed(() => !!trim(d.issue) && !!d.briefId && !!trim(d.personal))
 
 async function generateBullets() {
   genError.value = ''
