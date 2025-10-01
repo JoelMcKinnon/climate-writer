@@ -46,7 +46,9 @@
               class="textarea min-h-20"
               placeholder="One concrete detail: cost, health, commute, wildfire smoke, etc."
             ></textarea>
-            <p v-if="!trim(d.personal)" class="mt-1 text-xs text-amber-700">This field is required.</p>
+            <p v-if="!hasEnoughPersonal" class="mt-1 text-xs text-amber-700">
+              Please add at least {{ minPersonal }} characters (one short sentence is fine).
+            </p>
           </div>
 
           <!-- Optional article context -->
@@ -212,7 +214,13 @@ const mergedBullets = computed(() => {
 // --- Step A: Generate bullets ---
 const genBusy = ref(false)
 const genError = ref('')
-const canGenerate = computed(() => !!trim(d.issue) && !!d.briefId && !!trim(d.personal))
+
+const minPersonal = 10
+const hasEnoughPersonal = computed(() => trim(d.personal).length >= minPersonal)
+
+const canGenerate = computed(() =>
+  !!trim(d.issue) && !!d.briefId && hasEnoughPersonal.value
+)
 
 async function generateBullets() {
   genError.value = ''
@@ -228,7 +236,7 @@ async function generateBullets() {
       articleDate: d.articleDate,
       outlet: d.outlet, 
       wordLimit: d.wordLimit || 180,
-      personalPerspective: d.personal
+      personalPerspective: String(d.personal ?? '')
     }
     const data = await $fetch('/api/outline', { method: 'POST', body: payload })
     d.thesis = data.thesis || ''

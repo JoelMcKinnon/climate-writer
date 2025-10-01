@@ -8,7 +8,7 @@ const Body = z.object({
   city: z.string().min(2),
   state: z.string().min(2),
   audience: z.enum(['editor','moc']),
-  personalPerspective: z.string().min(10),
+  personalPerspective: z.string().min(10, 'Please add at least 10 characters.'),
   articleTitle: z.string().optional(),
   articleDate: z.string().optional(),
   outlet: z.string().optional(),
@@ -17,10 +17,16 @@ const Body = z.object({
 
 export default defineEventHandler(async (event) => {
   const raw = await readBody(event)
-  const input = Body.parse({
-    ...raw,
-    personalPerspective: String(raw?.personalPerspective ?? ''),
-  })
+  let input: z.infer<typeof Body>
+  try {
+    input = Body.parse(await readBody(event))
+  } catch (err: any) {
+    // Map Zod issues -> single friendly message
+    const msg = Array.isArray(err?.issues) && err.issues.length
+      ? err.issues[0].message
+      : 'Invalid input'
+    throw createError({ statusCode: 400, statusMessage: msg })
+  }
   const brief = (briefs as any)[input.briefId]
   if (!brief) {
     throw createError({ statusCode: 400, statusMessage: 'Unknown briefId' })
