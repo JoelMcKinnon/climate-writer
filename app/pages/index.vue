@@ -226,12 +226,11 @@ async function generateBullets() {
       audience: d.audience,
       articleTitle: d.articleTitle,
       articleDate: d.articleDate,
-      wordLimit: d.wordLimit || 180
+      outlet: d.outlet, 
+      wordLimit: d.wordLimit || 180,
+      personalPerspective: d.personal
     }
-    const data = await $fetch('/api/outline', {
-      method: 'POST',
-      body: payload
-    })
+    const data = await $fetch('/api/outline', { method: 'POST', body: payload })
     d.thesis = data.thesis || ''
     d.bullets = Array.isArray(data.bullets) ? data.bullets : []
   } catch (e: any) {

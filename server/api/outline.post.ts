@@ -16,10 +16,15 @@ const Body = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const input = Body.parse(await readBody(event))
+  const raw = await readBody(event)
+  const input = Body.parse({
+    ...raw,
+    personalPerspective: String(raw?.personalPerspective ?? ''),
+  })
   const brief = (briefs as any)[input.briefId]
-  if (!brief) throw createError({ statusCode: 400, statusMessage: 'Unknown briefId' })
-
+  if (!brief) {
+    throw createError({ statusCode: 400, statusMessage: 'Unknown briefId' })
+  }
   const { openaiApiKey } = useRuntimeConfig()
   if (!openaiApiKey) throw createError({ statusCode: 503, statusMessage: 'LLM unavailable: server is not configured.' })
   const openai = new OpenAI({ apiKey: openaiApiKey })
