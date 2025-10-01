@@ -72,8 +72,25 @@ export function scoreLTE(input: {
   return { score, items, suggestions }
 }
 
-export function tightenToWords(text: string, maxWords = 180) {
-  const tokens = (String(text).trim().split(/\s+/)).filter(Boolean)
-  if (tokens.length <= maxWords) return text ?? ''
-  return tokens.slice(0, maxWords).join(' ') + '…'
+export function tightenToWords(text: string, limit: number): string {
+  const paras = text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
+  const out: string[] = []
+  let used = 0
+
+  for (const p of paras) {
+    const words = p.split(/\s+/)
+    if (used >= limit) break
+
+    const remaining = limit - used
+    if (words.length <= remaining) {
+      out.push(words.join(' '))
+      used += words.length
+    } else {
+      out.push(words.slice(0, remaining).join(' '))
+      used = limit
+      break
+    }
+  }
+
+  return out.join('\n\n').trim()
 }

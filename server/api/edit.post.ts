@@ -18,10 +18,13 @@ export default defineEventHandler(async (event) => {
 
   const system = `Edit for clarity, respectful tone, and CCL style.
 Keep the author's voice. Remove jargon and absolutist language.
+PRESERVE all existing paragraph breaks exactly—do not merge paragraphs.
+Do NOT add a sign-off or courteous closing unless the draft already contains one.
+Respect content and ordering; tighten wording to fit the limit while keeping the same paragraph structure.
 Return JSON: { "polished": string, "notes": string[] }.
-Enforce a hard limit of ${wordLimit} words.`
+"polished" MUST use \\n\\n between paragraphs. No markdown, no extra headers.`
 
-  const resp = await openai.chat.completions.create({
+const resp = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     temperature: 0.2,
     messages: [
@@ -31,6 +34,6 @@ Enforce a hard limit of ${wordLimit} words.`
     response_format: { type: 'json_object' }
   })
 
-  const parsed = JSON.parse(resp.choices[0].message.content ?? '{"polished":"","notes":[]}')
-  return parsed
+  const json = JSON.parse(resp.choices[0].message.content || '{}')
+  return { polished: json.polished || '', notes: json.notes || [] }
 })
