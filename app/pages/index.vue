@@ -3,7 +3,7 @@
     <!-- LEFT: 3-step GPT-assisted flow -->
     <div class="space-y-6">
       <!-- STEP A: Intake -->
-      <CoachCard :step="1" title="Describe your situation">
+      <CoachCard :step="1" title="Provide essential context">
         <div class="grid gap-3 sm:grid-cols-2">
           <div class="sm:col-span-2">
             <label class="block text-sm font-medium text-slate-700">Issue / topic <span class="text-amber-700">*</span></label>
@@ -103,12 +103,10 @@
         </p>
 
         <div v-else class="space-y-3">
-          <p class="text-sm">
-            <span class="font-medium">Thesis:</span> {{ d.thesis }}
-          </p>
-
           <ul class="list-disc pl-6 text-sm text-slate-800">
-            <li v-for="b in mergedBullets" :key="b">{{ b }}</li>
+            <li v-for="(b, i) in mergedBullets" :key="i">
+              {{ b }}
+            </li>
           </ul>
 
           <div class="mt-3">
@@ -199,17 +197,90 @@ import { briefs } from '@/data/briefs'
 
 const trim = (s?: string | null) => (s ?? '').trim()
 
+type OutlineResp = {
+  thesis?: string;
+  bullets?: string[];
+};
+
 const d = useDraft()
+
+function dedupeAgainstPersonal(personal: string, bullets: string[]) {
+  const norm = (s: string) =>
+    (' ' + s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ') + ' ').trim()
+
+  const p = norm(personal)
+  const pWords = new Set(p.split(' ').filter(Boolean))
+
+  return bullets.filter((b) => {
+    const nb = norm(b)
+    // exact or substring duplication
+    if (nb === p || nb.includes(p) || p.includes(nb)) return false
+
+    // simple word-overlap similarity to catch near-dupes
+    const bWords = nb.split(' ').filter(Boolean)
+    const overlap = bWords.filter((w) => pWords.has(w)).length
+    const ratio = overlap / Math.max(pWords.size, bWords.length)
+    return ratio < 0.6
+  })
+}
+
 
 // --- Brief options & active brief ---
 const briefOptions = Object.entries(briefs).map(([value, b]) => ({ value, label: b.title }))
 const activeBrief = computed(() => (d.briefId ? (briefs as any)[d.briefId] : null))
 
-// Bullets merged with required personal perspective (always first)
+/** -------- De-dupe helpers (personal vs model bullets) -------- **/
+const STOP = new Set([
+  'a','an','the','and','or','but','to','of','in','on','for','with','as','by','at','from',
+  'that','this','it','is','are','was','were','be','being','been','we','i','you','they','our',
+  'us','your','their'
+])
+
+function normWords(s: string) {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w && !STOP.has(w))
+}
+
+function jaccard(a: string, b: string) {
+  const A = new Set(normWords(a))
+  const B = new Set(normWords(b))
+  if (!A.size || !B.size) return 0
+  let inter = 0
+  for (const x of A) if (B.has(x)) inter++
+  return inter / (A.size + B.size - inter)
+}
+
+function sameLead(a: string, b: string, n = 5) {
+  const wa = a.trim().toLowerCase().split(/\s+/).slice(0, n).join(' ')
+  const wb = b.trim().toLowerCase().split(/\s+/).slice(0, n).join(' ')
+  return wa && wb && wa === wb
+}
+
+/** Bullets merged with personal first, removing near-duplicates */
 const mergedBullets = computed(() => {
-  const personal = d.personal?.trim() ? [`Personal: ${d.personal.trim()}`] : []
-  return [...personal, ...(Array.isArray(d.bullets) ? d.bullets : [])]
+  const personal = trim(d.personal)
+  const base = Array.isArray(d.bullets) ? d.bullets : []
+
+  // If no personal note yet, just show model bullets.
+  if (!personal) return base
+
+  const filtered = base.filter(b => {
+    const s = trim(b)
+    if (!s) return false
+    // drop if it's basically the same as the personal note
+    if (sameLead(s, personal, 5)) return false
+    if (jaccard(s, personal) >= 0.55) return false
+    return true
+  })
+
+  // Put personal first; remove any trailing period cleanup for consistency.
+  const personalClean = personal.replace(/^\s*personal:\s*/i, '')
+  return [personalClean, ...filtered]
 })
+/** -------------------------------------------------------------- **/
 
 // --- Step A: Generate bullets ---
 const genBusy = ref(false)
@@ -239,7 +310,6 @@ async function generateBullets() {
       personalPerspective: String(d.personal ?? '')
     }
     const data = await $fetch('/api/outline', { method: 'POST', body: payload })
-    d.thesis = data.thesis || ''
     d.bullets = Array.isArray(data.bullets) ? data.bullets : []
   } catch (e: any) {
     genError.value = e?.data?.statusMessage || e?.message || 'Failed to generate.'
