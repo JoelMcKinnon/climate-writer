@@ -256,18 +256,20 @@ function insertOutline() {
     ? `Regarding "${d.articleTitle}"${d.articleDate ? ` (${d.articleDate})` : ''}${d.outlet ? ` in ${d.outlet}` : ''}:`
     : `In ${[d.city, d.state].filter(Boolean).join(', ') || 'our community'},`
 
-  // Personal always first; rest follow as sentences.
-  const sentences = mergedBullets.value.map(b => b.replace(/^Personal:\s*/,'').replace(/\.*\s*$/, '.'))
+  // Personal always first; turn each bullet into a clean sentence
+  const sentences = mergedBullets.value
+    .map(b => b.replace(/^Personal:\s*/, '').replace(/\.*\s*$/, '.'))
+
   const middle = sentences.join(' ')
-  const close = 'Thank you for considering this perspective.'
 
-  d.draftText = [intro, middle, close].filter(Boolean).join(' ')
+  // Only intro + bullet sentences (no close)
+  d.draftText = [intro, middle].filter(Boolean).join(' ')
 
-  // Populate rubric helpers
-  d.newsRef = intro
-  d.problem = (d.bullets && d.bullets[0]) ? d.bullets[0] : ''
+  // Update rubric helpers (no explicit close)
+  d.newsRef  = intro
+  d.problem  = (d.bullets && d.bullets[0]) ? d.bullets[0] : ''
   d.solution = (d.bullets && d.bullets.slice(1, 3).join(' ')) || ''
-  d.close = close
+  d.close    = '' // keep empty so coach doesn’t invent one
 }
 
 // --- Step C: Polish & trim ---
