@@ -51,6 +51,22 @@
             </p>
           </div>
 
+          <!-- Additional topical context -->
+          <div class="sm:col-span-2">
+            <label class="block text-sm font-medium text-slate-700">
+              Additional context (optional)
+            </label>
+            <textarea
+              v-model="d.extraContext"
+              class="textarea min-h-28"
+              :maxlength="4000"
+              placeholder="Paste short excerpts or notes from a brief, article, testimony, etc. Max ~4,000 characters."
+            />
+            <div class="mt-1 text-xs text-slate-500">
+              {{ (d.extraContext || '').length }}/4000
+            </div>
+          </div>
+
           <!-- Optional article context -->
           <div class="sm:col-span-2">
             <label class="block text-sm font-medium text-slate-700">Article (title) you’re responding to (optional)</label>
@@ -307,7 +323,8 @@ async function generateBullets() {
       articleDate: d.articleDate,
       outlet: d.outlet, 
       wordLimit: d.wordLimit || 180,
-      personalPerspective: String(d.personal ?? '')
+      personalPerspective: String(d.personal ?? ''),
+      extraContext: d.extraContext || ''
     }
     const data = await $fetch('/api/outline', { method: 'POST', body: payload })
     d.bullets = Array.isArray(data.bullets) ? data.bullets : []
