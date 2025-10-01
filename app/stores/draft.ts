@@ -12,11 +12,8 @@ export const useDraft = defineStore('draft', {
     articleTitle: '',
     articleDate: '',
     outlet: '',
-
     bullets: [] as string[],
-    // Remove selection/ask fields
-    // selectedBullets: [] as string[],
-    // ask: '',
     wordLimit: 180,
+    extraContext: ''
   }),
 })
