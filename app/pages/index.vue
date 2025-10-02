@@ -51,21 +51,46 @@
             </p>
           </div>
 
-          <!-- Additional topical context -->
-          <div class="sm:col-span-2">
-            <label class="block text-sm font-medium text-slate-700">
-              Additional context (optional)
-            </label>
-            <textarea
-              v-model="d.extraContext"
-              class="textarea min-h-28"
-              :maxlength="4000"
-              placeholder="Paste short excerpts or notes from a brief, article, testimony, etc. Max ~4,000 characters."
+        <!-- NEW: Add context (optional) -->
+        <div class="mt-4 space-y-3">
+          <label class="block text-sm font-medium text-slate-700">
+            Add context (optional)
+            <span class="block text-xs font-normal text-slate-600">
+              Paste background notes here, or attach a .txt/.md/.html file, or fetch from a link.
+            </span>
+          </label>
+
+          <!-- textarea bound to extraContext -->
+          <textarea
+            v-model="d.extraContext"
+            class="textarea min-h-28"
+            placeholder="Paste relevant excerpts, facts, quotes, or guidance. (We’ll summarize this for the model.)"
+          />
+
+          <!-- file upload -->
+          <div class="flex flex-wrap items-center gap-3">
+            <input
+              type="file"
+              accept=".txt,.md,.html,.htm,text/plain,text/markdown,text/html"
+              @change="handleFile"
+              class="text-sm"
             />
-            <div class="mt-1 text-xs text-slate-500">
-              {{ (d.extraContext || '').length }}/4000
-            </div>
           </div>
+
+          <!-- URL fetch -->
+          <div class="flex flex-wrap items-center gap-2">
+            <input
+              v-model="urlInput"
+              class="input flex-1"
+              placeholder="https://example.com/background-article"
+            />
+            <button class="btn-outline" :disabled="!urlInput || ctxBusy" @click="fetchUrl">
+              {{ ctxBusy ? 'Fetching…' : 'Fetch & add' }}
+            </button>
+          </div>
+
+          <p v-if="ctxError" class="text-sm text-amber-700">{{ ctxError }}</p>
+        </div>
 
           <!-- Optional article context -->
           <div class="sm:col-span-2">
@@ -219,6 +244,66 @@ type OutlineResp = {
 };
 
 const d = useDraft()
+
+// ------- Context helpers (upload + fetch URL) -------
+const ctxBusy = ref(false)
+const ctxError = ref('')
+const urlInput = ref('')
+
+function handleFile(e: Event) {
+  ctxError.value = ''
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  // Guard: text-like only (keep it simple)
+  const ok =
+    file.type.startsWith('text/') ||
+    /\.md$/i.test(file.name) ||
+    /\.txt$/i.test(file.name) ||
+    /\.htm(l)?$/i.test(file.name)
+
+  if (!ok) {
+    ctxError.value = 'Unsupported file type. Please upload .txt, .md, or .html.'
+    input.value = ''
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = () => {
+    const text = String(reader.result || '')
+    // light cap to avoid huge client payloads; server also caps/summarizes
+    const append = text.slice(0, 8000).replace(/\s+/g, ' ').trim()
+    d.extraContext = [d.extraContext, append].filter(Boolean).join('\n\n')
+    input.value = ''
+  }
+  reader.onerror = () => {
+    ctxError.value = 'Could not read the file.'
+  }
+  reader.readAsText(file)
+}
+
+async function fetchUrl() {
+  ctxError.value = ''
+  if (!trim(urlInput.value)) return
+  ctxBusy.value = true
+  try {
+    const { text } = await $fetch('/api/fetch-url', {
+      method: 'POST',
+      body: { url: urlInput.value }
+    })
+    if (trim(text)) {
+      d.extraContext = [d.extraContext, text].filter(Boolean).join('\n\n')
+      urlInput.value = ''
+    } else {
+      ctxError.value = 'No readable text detected at that link.'
+    }
+  } catch (e: any) {
+    ctxError.value = e?.data?.statusMessage || e?.message || 'Failed to fetch the URL.'
+  } finally {
+    ctxBusy.value = false
+  }
+}
 
 function dedupeAgainstPersonal(personal: string, bullets: string[]) {
   const norm = (s: string) =>
