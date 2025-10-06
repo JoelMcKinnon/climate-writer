@@ -85,7 +85,8 @@ Return compact JSON:
     `Personal perspective: ${input.personalPerspective}`,
     extraFacts ? `Extra context (summarized):\n${extraFacts}` : '',
     cclDoDont,
-    `Word target: ${input.wordLimit}`
+    `Word target: ${input.wordLimit}
+    Do not repeat the users personal perspective verbatim as a bullet; build on it with new points.`
   ]
     .filter(Boolean)
     .join('\n')
