@@ -1,15 +1,19 @@
 <template>
   <div class="grid gap-6 lg:grid-cols-[1fr,360px]">
-    <!-- LEFT: 3-step GPT-assisted flow -->
+    <!-- LEFT: flow -->
     <div class="space-y-6">
-      <!-- STEP A: Intake -->
+      <!-- STEP A -->
       <CoachCard :step="1" title="Provide essential context">
         <div class="grid gap-3 sm:grid-cols-2">
+          <!-- Required topic -->
           <div class="sm:col-span-2">
-            <label class="block text-sm font-medium text-slate-700">Issue / topic <span class="text-amber-700">*</span></label>
+            <label class="block text-sm font-medium text-slate-700">
+              Issue / topic <span class="text-amber-700">*</span>
+            </label>
             <input v-model="d.issue" class="input" placeholder="e.g., Clean energy permitting" />
           </div>
 
+          <!-- Audience + Brief -->
           <div>
             <label class="block text-sm font-medium text-slate-700">Audience</label>
             <select v-model="d.audience" class="select">
@@ -19,24 +23,26 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-slate-700">CCL brief <span class="text-amber-700">*</span></label>
+            <label class="block text-sm font-medium text-slate-700">
+              CCL brief <span class="text-amber-700">*</span>
+            </label>
             <select v-model="d.briefId" class="select">
               <option disabled value="">Select a brief</option>
               <option v-for="opt in briefOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
             </select>
           </div>
 
+          <!-- Locale -->
           <div>
             <label class="block text-sm font-medium text-slate-700">City</label>
             <input v-model="d.city" class="input" />
           </div>
-
           <div>
             <label class="block text-sm font-medium text-slate-700">State</label>
             <input v-model="d.state" class="input" />
           </div>
 
-          <!-- Personal perspective required -->
+          <!-- Personal perspective (required) -->
           <div class="sm:col-span-2">
             <label class="block text-sm font-medium text-slate-700">
               Your personal perspective (1–2 sentences) <span class="text-amber-700">*</span>
@@ -46,69 +52,61 @@
               class="textarea min-h-20"
               placeholder="One concrete detail: cost, health, commute, wildfire smoke, etc."
             ></textarea>
-            <p v-if="!hasEnoughPersonal" class="mt-1 text-xs text-amber-700">
-              Please add at least {{ minPersonal }} characters (one short sentence is fine).
+            <p v-if="!trim(d.personal)" class="mt-1 text-xs text-amber-700">This field is required.</p>
+          </div>
+
+          <!-- ADDITIONAL CONTEXT (3 methods) -->
+          <div class="sm:col-span-2">
+            <h4 class="text-sm font-semibold text-slate-800">Add context (optional)</h4>
+
+            <!-- 1) Paste -->
+            <label class="mt-2 block text-sm font-medium text-slate-700">Paste notes, quotes, or a short excerpt</label>
+            <textarea
+              v-model="d.extraPaste"
+              class="textarea min-h-24"
+              placeholder="Paste relevant background text here…"
+            ></textarea>
+
+            <!-- 2) Upload -->
+            <div class="mt-3">
+              <label class="block text-sm font-medium text-slate-700">Upload a .txt/.md/.html file</label>
+              <input type="file" accept=".txt,.md,.markdown,.htm,.html"
+                     class="block text-sm"
+                     @change="onFileUpload" />
+              <p v-if="d.lastUploadName" class="mt-1 text-xs text-slate-600">
+                Added: {{ d.lastUploadName }}
+              </p>
+            </div>
+
+            <!-- 3) Fetch from URL -->
+            <div class="mt-3 grid sm:grid-cols-[1fr,auto] gap-2">
+              <input v-model="fetchUrl" class="input" placeholder="https://example.com/article" />
+              <button class="btn-outline" :disabled="!isValidUrl(fetchUrl) || fetchingUrl" @click="fetchAndAdd">
+                {{ fetchingUrl ? 'Fetching…' : 'Fetch & add' }}
+              </button>
+            </div>
+            <p v-if="d.lastFetchedUrl" class="mt-1 text-xs text-slate-600">
+              Added from: {{ d.lastFetchedUrl }}
             </p>
+            <p v-if="fetchError" class="mt-1 text-xs text-amber-700">{{ fetchError }}</p>
           </div>
 
-        <!-- NEW: Add context (optional) -->
-        <div class="mt-4 space-y-3">
-          <label class="block text-sm font-medium text-slate-700">
-            Add context (optional)
-            <span class="block text-xs font-normal text-slate-600">
-              Paste background notes here, or attach a .txt/.md/.html file, or fetch from a link.
-            </span>
-          </label>
-
-          <!-- textarea bound to extraContext -->
-          <textarea
-            v-model="d.extraContext"
-            class="textarea min-h-28"
-            placeholder="Paste relevant excerpts, facts, quotes, or guidance. (We’ll summarize this for the model.)"
-          />
-
-          <!-- file upload -->
-          <div class="flex flex-wrap items-center gap-3">
-            <input
-              type="file"
-              accept=".txt,.md,.html,.htm,text/plain,text/markdown,text/html"
-              @change="handleFile"
-              class="text-sm"
-            />
-          </div>
-
-          <!-- URL fetch -->
-          <div class="flex flex-wrap items-center gap-2">
-            <input
-              v-model="urlInput"
-              class="input flex-1"
-              placeholder="https://example.com/background-article"
-            />
-            <button class="btn-outline" :disabled="!urlInput || ctxBusy" @click="fetchUrl">
-              {{ ctxBusy ? 'Fetching…' : 'Fetch & add' }}
-            </button>
-          </div>
-
-          <p v-if="ctxError" class="text-sm text-amber-700">{{ ctxError }}</p>
-        </div>
-
-          <!-- Optional article context -->
+          <!-- Optional news ref -->
           <div class="sm:col-span-2">
             <label class="block text-sm font-medium text-slate-700">Article (title) you’re responding to (optional)</label>
             <input v-model="d.articleTitle" class="input" placeholder="e.g., ‘Faster clean power is within reach’" />
           </div>
-
           <div>
             <label class="block text-sm font-medium text-slate-700">Article date (optional)</label>
             <input v-model="d.articleDate" class="input" placeholder="e.g., Sept 10, 2025" />
           </div>
-
           <div>
             <label class="block text-sm font-medium text-slate-700">Outlet (optional)</label>
             <input v-model="d.outlet" class="input" placeholder="e.g., Bellingham Herald" />
           </div>
         </div>
 
+        <!-- Brief preview -->
         <div v-if="activeBrief" class="mt-4 ccl-panel p-4">
           <h4 class="font-semibold text-slate-900">{{ activeBrief.title }}</h4>
           <p class="mt-1 text-sm text-slate-800">{{ activeBrief.summary }}</p>
@@ -128,7 +126,8 @@
           </div>
         </div>
 
-        <div class="mt-4 flex flex-wrap gap-2">
+        <!-- Generate -->
+        <div class="mt-4 flex flex-wrap gap-2 items-center">
           <button class="btn-primary" :disabled="!canGenerate" @click="generateBullets">
             Generate bullets
           </button>
@@ -137,17 +136,13 @@
         </div>
       </CoachCard>
 
-      <!-- STEP B: Bullets (read-only list with personal first) -->
+      <!-- STEP B -->
       <CoachCard :step="2" title="Bullet ideas">
-        <p class="text-sm text-slate-600" v-if="!mergedBullets.length">
-          No bullets yet — run “Generate bullets.”
-        </p>
+        <p class="text-sm text-slate-600" v-if="!hasBullets">No bullets yet — run “Generate bullets.”</p>
 
         <div v-else class="space-y-3">
           <ul class="list-disc pl-6 text-sm text-slate-800">
-            <li v-for="(b, i) in mergedBullets" :key="i">
-              {{ b }}
-            </li>
+            <li v-for="b in mergedBullets" :key="b">{{ b }}</li>
           </ul>
 
           <div class="mt-3">
@@ -156,7 +151,7 @@
         </div>
       </CoachCard>
 
-      <!-- STEP C: Editor + Polish -->
+      <!-- STEP C -->
       <CoachCard :step="3" title="Draft & polish">
         <p class="text-sm text-slate-600">
           Draft your letter. When ready, click <em>Polish &amp; trim</em> to copy-edit and meet your word target.
@@ -165,9 +160,7 @@
         <textarea v-model="d.draftText" class="textarea min-h-60" placeholder="Start drafting here…"></textarea>
 
         <div class="mt-3 flex flex-wrap gap-2 items-center">
-          <button class="btn-primary" :disabled="!trim(d.draftText)" @click="polish">
-            Polish &amp; trim
-          </button>
+          <button class="btn-primary" :disabled="!trim(d.draftText)" @click="polish">Polish &amp; trim</button>
           <button class="btn-outline" :disabled="!finalText" @click="copy(finalText)">Copy final</button>
           <span class="text-sm text-slate-600">Words: {{ wordCount(finalText || d.draftText) }}</span>
           <span v-if="editBusy" class="text-sm text-slate-600">Polishing…</span>
@@ -196,16 +189,14 @@
         </div>
         <ul class="mt-2 space-y-1">
           <li v-for="i in result.items" :key="i.key" class="text-sm">
-            <span :class="i.pass ? 'text-green-700 font-medium' : 'text-amber-700 font-medium'">
-              {{ i.label }}
-            </span>
+            <span :class="i.pass ? 'text-green-700 font-medium' : 'text-amber-700 font-medium'">{{ i.label }}</span>
             <span v-if="!i.pass" class="text-slate-600"> — {{ i.note }}</span>
           </li>
         </ul>
       </section>
     </div>
 
-    <!-- RIGHT: Guidance -->
+    <!-- RIGHT: guidance -->
     <aside class="ccl-panel p-5 sm:p-6 h-fit">
       <h3 class="text-xl font-bold text-slate-900">CCL guidance for LTEs</h3>
       <h4 class="mt-3 font-semibold text-slate-900">Five-part formula</h4>
@@ -236,168 +227,74 @@ import { scoreLTE, tightenToWords } from '~/composables/useCoach'
 import { computed, ref } from 'vue'
 import { briefs } from '@/data/briefs'
 
+const d = useDraft()
 const trim = (s?: string | null) => (s ?? '').trim()
 
-type OutlineResp = {
-  thesis?: string;
-  bullets?: string[];
-};
+/* ---- Briefs ---- */
+const briefOptions = Object.entries(briefs).map(([value, b]) => ({ value, label: b.title }))
+const activeBrief = computed(() => (d.briefId ? (briefs as any)[d.briefId] : null))
 
-const d = useDraft()
+/* ---- Step A: extra context helpers ---- */
+const fetchUrl = ref('')
+const fetchingUrl = ref(false)
+const fetchError = ref('')
 
-// ------- Context helpers (upload + fetch URL) -------
-const ctxBusy = ref(false)
-const ctxError = ref('')
-const urlInput = ref('')
+function isValidUrl(u: string) {
+  try { return !!new URL(u) } catch { return false }
+}
 
-function handleFile(e: Event) {
-  ctxError.value = ''
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-
-  // Guard: text-like only (keep it simple)
-  const ok =
-    file.type.startsWith('text/') ||
-    /\.md$/i.test(file.name) ||
-    /\.txt$/i.test(file.name) ||
-    /\.htm(l)?$/i.test(file.name)
-
-  if (!ok) {
-    ctxError.value = 'Unsupported file type. Please upload .txt, .md, or .html.'
-    input.value = ''
-    return
+async function fetchAndAdd() {
+  fetchError.value = ''
+  if (!isValidUrl(fetchUrl.value)) return
+  fetchingUrl.value = true
+  try {
+    // proxy through server to avoid CORS
+    const txt = await $fetch<string>('/api/fetch', { method: 'GET', query: { url: fetchUrl.value } })
+    d.extraFetchedText = (txt ?? '').toString().slice(0, 20000) // client cap
+    d.lastFetchedUrl = fetchUrl.value
+  } catch (e: any) {
+    fetchError.value = e?.data?.statusMessage || e?.message || 'Failed to fetch.'
+  } finally {
+    fetchingUrl.value = false
   }
+}
 
+function onFileUpload(ev: Event) {
+  const file = (ev.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  d.lastUploadName = file.name
   const reader = new FileReader()
   reader.onload = () => {
-    const text = String(reader.result || '')
-    // light cap to avoid huge client payloads; server also caps/summarizes
-    const append = text.slice(0, 8000).replace(/\s+/g, ' ').trim()
-    d.extraContext = [d.extraContext, append].filter(Boolean).join('\n\n')
-    input.value = ''
-  }
-  reader.onerror = () => {
-    ctxError.value = 'Could not read the file.'
+    const txt = (reader.result || '').toString()
+    d.extraUploadText = txt.slice(0, 20000) // client cap
   }
   reader.readAsText(file)
 }
 
-async function fetchUrl() {
-  ctxError.value = ''
-  if (!trim(urlInput.value)) return
-  ctxBusy.value = true
-  try {
-    const { text } = await $fetch('/api/fetch-url', {
-      method: 'POST',
-      body: { url: urlInput.value }
-    })
-    if (trim(text)) {
-      d.extraContext = [d.extraContext, text].filter(Boolean).join('\n\n')
-      urlInput.value = ''
-    } else {
-      ctxError.value = 'No readable text detected at that link.'
-    }
-  } catch (e: any) {
-    ctxError.value = e?.data?.statusMessage || e?.message || 'Failed to fetch the URL.'
-  } finally {
-    ctxBusy.value = false
-  }
-}
-
-function dedupeAgainstPersonal(personal: string, bullets: string[]) {
-  const norm = (s: string) =>
-    (' ' + s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ') + ' ').trim()
-
-  const p = norm(personal)
-  const pWords = new Set(p.split(' ').filter(Boolean))
-
-  return bullets.filter((b) => {
-    const nb = norm(b)
-    // exact or substring duplication
-    if (nb === p || nb.includes(p) || p.includes(nb)) return false
-
-    // simple word-overlap similarity to catch near-dupes
-    const bWords = nb.split(' ').filter(Boolean)
-    const overlap = bWords.filter((w) => pWords.has(w)).length
-    const ratio = overlap / Math.max(pWords.size, bWords.length)
-    return ratio < 0.6
-  })
-}
-
-
-// --- Brief options & active brief ---
-const briefOptions = Object.entries(briefs).map(([value, b]) => ({ value, label: b.title }))
-const activeBrief = computed(() => (d.briefId ? (briefs as any)[d.briefId] : null))
-
-/** -------- De-dupe helpers (personal vs model bullets) -------- **/
-const STOP = new Set([
-  'a','an','the','and','or','but','to','of','in','on','for','with','as','by','at','from',
-  'that','this','it','is','are','was','were','be','being','been','we','i','you','they','our',
-  'us','your','their'
-])
-
-function normWords(s: string) {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(w => w && !STOP.has(w))
-}
-
-function jaccard(a: string, b: string) {
-  const A = new Set(normWords(a))
-  const B = new Set(normWords(b))
-  if (!A.size || !B.size) return 0
-  let inter = 0
-  for (const x of A) if (B.has(x)) inter++
-  return inter / (A.size + B.size - inter)
-}
-
-function sameLead(a: string, b: string, n = 5) {
-  const wa = a.trim().toLowerCase().split(/\s+/).slice(0, n).join(' ')
-  const wb = b.trim().toLowerCase().split(/\s+/).slice(0, n).join(' ')
-  return wa && wb && wa === wb
-}
-
-/** Bullets merged with personal first, removing near-duplicates */
-const mergedBullets = computed(() => {
-  const personal = trim(d.personal)
-  const base = Array.isArray(d.bullets) ? d.bullets : []
-
-  // If no personal note yet, just show model bullets.
-  if (!personal) return base
-
-  const filtered = base.filter(b => {
-    const s = trim(b)
-    if (!s) return false
-    // drop if it's basically the same as the personal note
-    if (sameLead(s, personal, 5)) return false
-    if (jaccard(s, personal) >= 0.55) return false
-    return true
-  })
-
-  // Put personal first; remove any trailing period cleanup for consistency.
-  const personalClean = personal.replace(/^\s*personal:\s*/i, '')
-  return [personalClean, ...filtered]
+/* ---- Bullets: merged & guards ---- */
+const mergedBullets = computed<string[]>(() => {
+  const out: string[] = []
+  if (trim(d.personal)) out.push(trim(d.personal))
+  if (Array.isArray(d.bullets)) out.push(...d.bullets)
+  return out
 })
-/** -------------------------------------------------------------- **/
+const hasBullets = computed(() => mergedBullets.value.length > 0)
 
-// --- Step A: Generate bullets ---
+/* ---- Generate bullets ---- */
 const genBusy = ref(false)
 const genError = ref('')
-
-const minPersonal = 10
-const hasEnoughPersonal = computed(() => trim(d.personal).length >= minPersonal)
-
-const canGenerate = computed(() =>
-  !!trim(d.issue) && !!d.briefId && hasEnoughPersonal.value
-)
+const canGenerate = computed(() => !!trim(d.issue) && !!d.briefId && !!trim(d.personal))
 
 async function generateBullets() {
   genError.value = ''
   genBusy.value = true
   try {
+    const extraContext = [
+      trim(d.extraPaste),
+      trim(d.extraUploadText),
+      trim(d.extraFetchedText),
+    ].filter(Boolean).join('\n')
+
     const payload = {
       issue: d.issue,
       briefId: d.briefId,
@@ -406,13 +303,15 @@ async function generateBullets() {
       audience: d.audience,
       articleTitle: d.articleTitle,
       articleDate: d.articleDate,
-      outlet: d.outlet, 
+      outlet: d.outlet,
       wordLimit: d.wordLimit || 180,
-      personalPerspective: String(d.personal ?? ''),
-      extraContext: d.extraContext || ''
+      personalPerspective: d.personal,
+      extraContext
     }
-    const data = await $fetch('/api/outline', { method: 'POST', body: payload })
-    d.bullets = Array.isArray(data.bullets) ? data.bullets : []
+
+    const data = await $fetch<any>('/api/outline', { method: 'POST', body: payload })
+    d.thesis = (data?.thesis ?? '').toString()
+    d.bullets = Array.isArray(data?.bullets) ? data.bullets : []
   } catch (e: any) {
     genError.value = e?.data?.statusMessage || e?.message || 'Failed to generate.'
   } finally {
@@ -420,7 +319,7 @@ async function generateBullets() {
   }
 }
 
-// --- Step B: Insert outline into editor ---
+/* ---- Insert outline into editor ---- */
 function insertOutline() {
   if (!mergedBullets.value.length) return
 
@@ -428,23 +327,18 @@ function insertOutline() {
     ? `Regarding "${d.articleTitle}"${d.articleDate ? ` (${d.articleDate})` : ''}${d.outlet ? ` in ${d.outlet}` : ''}:`
     : `In ${[d.city, d.state].filter(Boolean).join(', ') || 'our community'},`
 
-  // Personal always first; turn each bullet into a clean sentence
-  const sentences = mergedBullets.value
-    .map(b => b.replace(/^Personal:\s*/, '').replace(/\.*\s*$/, '.'))
-
+  const sentences = mergedBullets.value.map(b => b.replace(/\.*\s*$/, '.'))
   const middle = sentences.join(' ')
+  const close = 'Thank you for considering this perspective.'
 
-  // Only intro + bullet sentences (no close)
-  d.draftText = [intro, middle].filter(Boolean).join(' ')
-
-  // Update rubric helpers (no explicit close)
-  d.newsRef  = intro
-  d.problem  = (d.bullets && d.bullets[0]) ? d.bullets[0] : ''
-  d.solution = (d.bullets && d.bullets.slice(1, 3).join(' ')) || ''
-  d.close    = '' // keep empty so coach doesn’t invent one
+  d.draftText = [intro, middle, close].filter(Boolean).join(' ')
+  d.newsRef = intro
+  d.problem = (d.bullets[0] ?? '')
+  d.solution = (d.bullets.slice(1, 3).join(' '))
+  d.close = close
 }
 
-// --- Step C: Polish & trim ---
+/* ---- Polish ---- */
 const editBusy = ref(false)
 const editError = ref('')
 
@@ -452,7 +346,7 @@ async function polish() {
   editError.value = ''
   editBusy.value = true
   try {
-    const data = await $fetch('/api/edit', {
+    const data = await $fetch<any>('/api/edit', {
       method: 'POST',
       body: { draft: d.draftText, wordLimit: d.wordLimit || 180 }
     })
@@ -465,13 +359,13 @@ async function polish() {
   }
 }
 
-// --- Coach feedback & helpers ---
+/* ---- Coach feedback & helpers ---- */
 const result = computed(() =>
   scoreLTE({
     newsRef: d.newsRef || '',
     problem: d.problem || '',
     solution: d.solution || '',
-    ask: '',           // ask removed in this flow
+    ask: '',
     close: d.close || '',
     region: d.region || ''
   })
@@ -483,7 +377,6 @@ const noteList = computed(() => (d.changeNotes ? d.changeNotes.split('\n').filte
 function wordCount(t: string) {
   return (t.match(/\b\w+\b/g)?.length) || 0
 }
-
 function copy(t: string) {
   navigator.clipboard.writeText(t)
 }
