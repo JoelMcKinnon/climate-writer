@@ -142,7 +142,7 @@
 
         <div v-else class="space-y-3">
           <ul class="list-disc pl-6 text-sm text-slate-800">
-            <li v-for="b in mergedBullets" :key="b">{{ b }}</li>
+            <li v-for="(b,i) in mergedBullets" :key="i">{{ b }}</li>
           </ul>
 
           <div class="mt-3">
@@ -271,15 +271,44 @@ function onFileUpload(ev: Event) {
   reader.readAsText(file)
 }
 
-/* ---- Bullets: merged & guards ---- */
-const mergedBullets = computed<string[]>(() => {
+/* ---- Bullet helpers ---- */
+function normText(s: string) {
+  return s
+    .toLowerCase()
+    .replace(/[“”"’']/g, '')      // quotes
+    .replace(/[^\w\s]/g, ' ')     // punctuation → space
+    .replace(/\s+/g, ' ')         // collapse whitespace
+    .trim()
+}
+
+function jaccardTokens(a: string, b: string) {
+  const A = new Set(normText(a).split(' '))
+  const B = new Set(normText(b).split(' '))
+  const inter = [...A].filter(x => B.has(x)).length
+  const uni = new Set([...A, ...B]).size
+  return uni ? inter / uni : 0
+}
+
+function dedupeNear(items: string[], threshold = 0.85) {
   const out: string[] = []
-  if (trim(d.personal)) out.push(trim(d.personal))
-  if (Array.isArray(d.bullets)) out.push(...d.bullets)
+  for (const s of items.map(x => trim(x)).filter(Boolean)) {
+    const isDup = out.some(t => {
+      if (normText(t) === normText(s)) return true         // exact after normalization
+      return jaccardTokens(t, s) >= threshold              // near-duplicate
+    })
+    if (!isDup) out.push(s)
+  }
   return out
+}
+
+/* ---- Merged bullets (deduped) ---- */
+const mergedBullets = computed<string[]>(() => {
+  const src: string[] = []
+  if (trim(d.personal)) src.push(trim(d.personal))
+  if (Array.isArray(d.bullets)) src.push(...d.bullets)
+  return dedupeNear(src)
 })
 const hasBullets = computed(() => mergedBullets.value.length > 0)
-
 /* ---- Generate bullets ---- */
 const genBusy = ref(false)
 const genError = ref('')
