@@ -1,9 +1,11 @@
+// server/api/outline.post.ts
 import { z } from 'zod'
 import OpenAI from 'openai'
-// IMPORTANT: use a Nitro-friendly import for Vercel.
-// If this path is what you already fixed earlier, keep it.
 import { briefs } from '../../app/data/briefs'
 
+/**
+ * Incoming payload
+ */
 const Body = z.object({
   issue: z.string().min(2),
   briefId: z.string().min(1),
@@ -14,29 +16,29 @@ const Body = z.object({
   articleDate: z.string().optional(),
   outlet: z.string().optional(),
   wordLimit: z.number().int().min(120).max(300),
-  personalPerspective: z.string().min(10),          // required, avoids empty bullets
-  extraContext: z.string().optional()               // new: long topical context
+  personalPerspective: z.string().min(10),
+  extraContext: z.string().optional(),
 })
 
 export default defineEventHandler(async (event) => {
   const input = Body.parse(await readBody(event))
 
+  // ---- Brief lookup ---------------------------------------------------------
   const brief = (briefs as any)[input.briefId]
   if (!brief) {
     throw createError({ statusCode: 400, statusMessage: 'Unknown briefId' })
   }
 
-  // ---- OpenAI client (must exist before any usage) ----
+  // ---- OpenAI client ---------------------------------------------------------
   const { openaiApiKey } = useRuntimeConfig()
   if (!openaiApiKey) {
     throw createError({ statusCode: 503, statusMessage: 'LLM unavailable: server is not configured.' })
   }
   const openai = new OpenAI({ apiKey: openaiApiKey })
 
-  // ---- Optional: summarize any pasted topical context so we don't blow the prompt ----
+  // ---- Optional: summarize long pasted/link-fetched context ------------------
   const extra = (input.extraContext ?? '').trim()
-  // hard cap and normalize whitespace to be safe for the model
-  const extraSafe = extra.slice(0, 4000).replace(/\s+/g, ' ').trim()
+  const extraSafe = extra.slice(0, 4000).replace(/\s+/g, ' ').trim() // guard tokens
 
   let extraFacts = ''
   if (extraSafe) {
@@ -47,23 +49,15 @@ export default defineEventHandler(async (event) => {
         {
           role: 'system',
           content:
-            'You extract neutral, factual notes from pasted text. Return 4–8 concise bullets (each 10–20 words), no advocacy, US spelling.'
+            'Extract neutral, factual notes from the user text. Return 4–8 concise bullets (10–20 words each). No advocacy; US spelling.',
         },
-        { role: 'user', content: extraSafe }
-      ]
+        { role: 'user', content: extraSafe },
+      ],
     })
     extraFacts = (sum.choices?.[0]?.message?.content ?? '').trim()
   }
 
-  const system = `You are a coach helping Citizens' Climate Lobby advocates draft LTEs.
-Follow CCL tone: respectful, appreciative, solution-focused. Avoid doom and snark.
-Return compact JSON:
-{
-  "thesis": string,        // one-sentence core claim
-  "bullets": string[],     // 5–8 bullets, 10–24 words each, no duplicates, no "Personal:" prefixes
-  "suggestedAsk": string   // single actionable ask if audience is MoC; empty for editor
-}`
-
+  // ---- Prompting for bullets -------------------------------------------------
   const locale = [input.city, input.state].filter(Boolean).join(', ')
   const newsRef = input.articleTitle
     ? `News ref: "${input.articleTitle}"${input.articleDate ? ` (${input.articleDate})` : ''}${input.outlet ? ` in ${input.outlet}` : ''}.`
@@ -73,20 +67,35 @@ Return compact JSON:
     `Brief: ${brief.title}`,
     `Summary: ${brief.summary}`,
     `Do: ${brief.dos.join(' • ')}`,
-    `Avoid: ${brief.donts.join(' • ')}`
+    `Avoid: ${brief.donts.join(' • ')}`,
   ].join('\n')
 
-  // Build user content the model will use to create bullets
+  const system = `You are coaching Citizens' Climate Lobby volunteers writing letters to the editor.
+Follow CCL tone: respectful, appreciative, constructive, and solution-focused. Avoid doom, snark, and absolutist language.
+
+Return compact JSON with these keys only:
+{
+  "thesis": string,      // one-sentence core claim
+  "bullets": string[],   // 5–8 bullets, 10–24 words each, locally relevant where possible
+  "suggestedAsk": string // actionable ask if audience is MoC; otherwise empty
+}
+
+Hard rules:
+• Do NOT copy or restate the user's personal perspective as a bullet; add NEW, distinct points instead.
+• No “Personal:” prefixes, no rhetorical questions, no quotes, no emojis.
+• Prefer variety: problem, evidence, solution, local benefit, cost/health/economy angle, and civility.
+• If a news reference is provided, include exactly ONE neutral bullet that ties to it (title/date only).
+• Eliminate duplicate or near-duplicate ideas.`
+
   const user = [
     `Topic: ${input.issue}`,
     locale ? `Location: ${locale}` : '',
     newsRef,
     `Audience: ${input.audience === 'moc' ? 'Member of Congress' : 'Newspaper editor'}`,
-    `Personal perspective: ${input.personalPerspective}`,
-    extraFacts ? `Extra context (summarized):\n${extraFacts}` : '',
+    `Personal perspective (do NOT restate as a bullet): ${input.personalPerspective}`,
+    extraFacts ? `Extra context (summarized bullets):\n${extraFacts}` : '',
     cclDoDont,
-    `Word target: ${input.wordLimit}
-    Do not repeat the users personal perspective verbatim as a bullet; build on it with new points.`
+    `Word target: ${input.wordLimit}`,
   ]
     .filter(Boolean)
     .join('\n')
@@ -96,11 +105,11 @@ Return compact JSON:
     temperature: 0.3,
     messages: [
       { role: 'system', content: system },
-      { role: 'user', content: user }
-    ]
+      { role: 'user', content: user },
+    ],
   })
 
-  // Basic JSON-parse-with-guard
+  // ---- Parse model JSON safely ----------------------------------------------
   let data: any = {}
   try {
     const txt = resp.choices?.[0]?.message?.content ?? '{}'
@@ -109,48 +118,85 @@ Return compact JSON:
     data = {}
   }
 
-  // Normalize outputs defensively
   const thesis = (data.thesis ?? '').toString().trim()
-  const bullets: string[] = Array.isArray(data.bullets) ? data.bullets : []
-  const cleaned = dedupeAndCleanBullets(
-    [
-      // ensure the personal perspective is present first
-      input.personalPerspective.trim(),
-      ...bullets
-    ],
-    8 // max bullets after merge
-  )
+  const modelBullets: string[] = Array.isArray(data.bullets) ? data.bullets : []
+
+  // ---- Merge + de-dupe -------------------------------------------------------
+  const cleaned = dedupeAndCleanBullets({
+    personal: input.personalPerspective,
+    modelBullets,
+    max: 8,
+  })
 
   const suggestedAsk =
     input.audience === 'moc' ? (data.suggestedAsk ?? '').toString().trim() : ''
 
-  return {
-    thesis,
-    bullets: cleaned,
-    suggestedAsk
-  }
+  return { thesis, bullets: cleaned, suggestedAsk }
 })
 
-/** remove blank/near-duplicate bullets and strip leading “Personal:” if any */
-function dedupeAndCleanBullets(items: string[], max = 8): string[] {
-  const seen = new Set<string>()
+/**
+ * Utilities: light semantic de-dupe so a paraphrase of the personal perspective
+ * (or another bullet) is filtered out. Jaccard over word sets + normalized keys.
+ */
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function toWordSet(s: string): Set<string> {
+  return new Set(normalize(s).split(' ').filter(Boolean))
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0
+  let inter = 0
+  for (const w of a) if (b.has(w)) inter++
+  const union = a.size + b.size - inter
+  return union ? inter / union : 0
+}
+
+function tooSimilar(a: string, b: string): boolean {
+  const sim = jaccard(toWordSet(a), toWordSet(b))
+  return sim >= 0.68 // tuned to catch “as a professional driver…” paraphrases
+}
+
+/**
+ * Remove blank / prefix / near-duplicate bullets; ensure the user's personal perspective
+ * is NOT injected as a bullet — instead we only use it to filter similar model bullets.
+ */
+function dedupeAndCleanBullets(opts: {
+  personal: string
+  modelBullets: string[]
+  max?: number
+}): string[] {
+  const { personal, modelBullets, max = 8 } = opts
   const out: string[] = []
+  const seenKeys = new Set<string>()
+  const personalText = (personal ?? '').trim()
 
-  for (const raw of items) {
-    const b = (raw ?? '')
-      .toString()
-      .replace(/^personal:\s*/i, '') // drop “Personal:” prefix if model added it
-      .replace(/\s+/g, ' ')
-      .trim()
-
+  for (const raw of modelBullets) {
+    let b = (raw ?? '').toString().replace(/^personal:\s*/i, '').trim()
     if (!b) continue
-    // cheap near-dup key: lowercase and drop punctuation
-    const key = b.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '')
-    if (seen.has(key)) continue
 
-    seen.add(key)
+    // skip if near-duplicate of personal perspective
+    if (personalText && tooSimilar(b, personalText)) continue
+
+    // collapse whitespace & make a coarse key for exact/near-exact dupes
+    b = b.replace(/\s+/g, ' ')
+    const key = normalize(b)
+    if (!key) continue
+    if (seenKeys.has(key)) continue
+
+    // avoid near-duplicates within the growing list
+    if (out.some((x) => tooSimilar(x, b))) continue
+
+    seenKeys.add(key)
     out.push(b)
     if (out.length >= max) break
   }
+
   return out
 }
